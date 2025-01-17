@@ -10,6 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fs::File;
 use std::io::{stdout, BufReader, BufWriter, Write};
 use std::path::Path;
+use std::time::SystemTime;
 
 // Loads runtime-provided constants for which declarations
 // will be generated at `$OUT_DIR/constants.rs`.
@@ -211,6 +212,7 @@ fn main() {
             }
             let mut total = 0usize;
             let mut positive = 0usize;
+            let a = SystemTime::now();
             while let Some(record) = reader.next() {
                 let seqrec = record.expect("Invalid record");
                 let contained = cbl.contains_seq(&seqrec.seq());
@@ -220,6 +222,10 @@ fn main() {
                         positive += 1;
                     }
                 }
+            }
+            match SystemTime::now().duration_since(a) {
+                Ok(t) => println!("# query time ns: {}", t.as_nanos()),
+                Err(_) => panic!("Timing failed!"),
             }
             eprintln!("# queries: {total}");
             eprintln!(
@@ -239,12 +245,23 @@ fn main() {
             } else {
                 eprintln!("Adding the {K}-mers contained in {input_filename} to the index");
             }
+            let a = SystemTime::now();
             while let Some(record) = reader.next() {
                 let seqrec = record.expect("Invalid record");
                 cbl.insert_seq(&seqrec.seq());
             }
+            let b = SystemTime::now();
             if let Some(output_filename) = args.output {
                 write_index(&cbl, output_filename.as_str());
+            }
+            let c = SystemTime::now();
+            match b.duration_since(a) {
+                Ok(t) => println!("# Insertion time ns: {}", t.as_nanos()),
+                Err(_) => panic!("Insertion timing failed!"),
+            }
+            match c.duration_since(b) {
+                Ok(t) => println!("# Serialization time ns: {}", t.as_nanos()),
+                Err(_) => panic!("Serialization timing failed!"),
             }
         }
         Command::Remove(args) => {
@@ -259,12 +276,23 @@ fn main() {
             } else {
                 eprintln!("Removing the {K}-mers contained in {input_filename} from the index");
             }
+            let a = SystemTime::now();
             while let Some(record) = reader.next() {
                 let seqrec = record.expect("Invalid record");
                 cbl.remove_seq(&seqrec.seq());
             }
+            let b = SystemTime::now();
             if let Some(output_filename) = args.output {
                 write_index(&cbl, output_filename.as_str());
+            }
+            let c = SystemTime::now();
+            match b.duration_since(a) {
+                Ok(t) => println!("# Removal time ns: {}", t.as_nanos()),
+                Err(_) => panic!("Removal timing failed"),
+            }
+            match c.duration_since(b) {
+                Ok(t) => println!("# Serialization time ns: {}", t.as_nanos()),
+                Err(_) => panic!("Serialization timing failed!"),
             }
         }
         Command::Merge(args) => {
